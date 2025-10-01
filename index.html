@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>行軍時間管理ツール</title>
+<style>
+  :root { --bg:#0f172a; --panel:#111827; --muted:#94a3b8; --text:#e5e7eb; --acc:#22d3ee; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; }
+  html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;}
+  header{padding:16px 20px;border-bottom:1px solid #1f2937;background:#0b1220;position:sticky;top:0;z-index:10}
+  header h1{margin:0;font-size:18px;letter-spacing:.02em}
+  main{max-width:1080px;margin:20px auto;padding:0 16px;}
+  .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  .row{display:grid;grid-template-columns:28px 1.1fr 110px 110px 100px 84px 36px;gap:8px;align-items:center}
+  .row.header{font-size:12px;color:var(--muted)}
+  .row + .row{margin-top:8px}
+  .idx{color:var(--muted);text-align:center;user-select:none}
+  input,button{background:#0b1220;border:1px solid #1f2937;color:#e5e7eb;border-radius:10px;padding:8px 10px;font-size:14px;outline:none}
+  input::placeholder{color:#64748b}
+  button{cursor:pointer}
+  .btn{padding:8px 12px;border-radius:10px;border:1px solid #1f2937}
+  .btn-ghost{background:transparent}
+  .btn-acc{background:var(--acc);color:#0b1220;border:none}
+  .btn-ok{background:var(--ok);color:#0b1220;border:none}
+  .grid{display:grid;gap:10px}
+  .two{grid-template-columns:1fr 1fr}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .hint{color:var(--muted);font-size:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #1f2937;padding:8px;text-align:left;font-size:14px;vertical-align:middle;white-space:nowrap}
+  th{color:var(--muted);font-weight:600}
+  .small{font-size:12px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  .drag{cursor:grab} .dragging{opacity:.6}
+  .updown{display:flex;gap:6px}
+  .count{font-variant-numeric:tabular-nums}
+  .compact-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  th.live-col, td.live-col { width: 92px; max-width: 92px; }
+  @media (max-width:1080px){
+    .row{grid-template-columns:24px 1fr 100px 100px 92px 78px 36px}
+    .two{grid-template-columns:1fr}
+    .compact-grid{grid-template-columns:1fr}
+    th.live-col, td.live-col { width: 86px; max-width: 86px; }
+  }
+</style>
+</head>
+<body>
+<header><h1>行軍時間管理ツール</h1></header>
+<main>
+  <section class="card grid two">
+    <div class="grid">
+      <div class="compact-grid">
+        <label>基準の集結残り時間
+          <input id="baseRally" class="mono" type="text" placeholder="例 4:50 / 290" />
+        </label>
+        <label>自分の行軍時間
+          <input id="myTime" class="mono" type="text" placeholder="例 0:30 / 30" />
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-ok" id="snap">スナップ（基準時間の設定）</button>
+        <span id="snapInfo" class="hint">未スナップ</span>
+        <button class="btn" id="copy">結果をコピー</button>
+        <button class="btn btn-ghost" id="reset">入力の保存をクリア</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <h3 style="margin:0 0 6px 0;">集結者一覧</h3>
+      <div class="row header">
+        <div>#</div><div>集結者</div><div>差（±秒）</div><div>行軍時間(1:10or70)のように入力</div><div>並べ替え</div><div>ドラッグ</div><div></div>
+      </div>
+      <div id="rows"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-acc" id="addRow">＋ 行を追加</button>
+        <button class="btn btn-ghost" id="clearRows">相手を全消去</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 style="margin:0 0 6px 0;">計算結果</h3>
+    <div id="summary" class="hint" style="margin-bottom:6px;">スナップすると要約が出ます。</div>
+    <div id="tableWrap"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const baseRallyEl = document.getElementById('baseRally');
+  const myTimeEl = document.getElementById('myTime');
+  const addRowBtn = document.getElementById('addRow');
+  const clearRowsBtn = document.getElementById('clearRows');
+  const rowsEl = document.getElementById('rows');
+  const snapBtn = document.getElementById('snap');
+  const snapInfo = document.getElementById('snapInfo');
+  const summaryEl = document.getElementById('summary');
+  const tableWrap = document.getElementById('tableWrap');
+  const copyBtn = document.getElementById('copy');
+  const resetBtn = document.getElementById('reset');
+
+  let lastSnap = null;
+  let B_base = null;
+  let items = [];
+  let timer = null;
+
+  const toInt = v => Number.parseInt(v, 10);
+  const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+  function parseMMSS(s){
+    if(s==null) return null;
+    s = String(s).trim();
+    if(s==='') return null;
+    if(/^\d+:\d{1,2}$/.test(s)){
+      const [m,ss] = s.split(':').map(n=>toInt(n));
+      if(ss>=0 && ss<60) return m*60 + ss;
+      return null;
+    }
+    if(/^\d+$/.test(s)) return toInt(s);
+    return null;
+  }
+  function fmtMMSS(total){
+    const t = Math.max(0, Math.floor(total));
+    const m = Math.floor(t/60), s = t%60;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+  function fmtClock(date){
+    const pad = n => String(n).padStart(2,'0');
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+  function addSecs(date, secs){ return new Date(date.getTime() + Math.floor(secs)*1000); }
+
+  function save(){
+    const data = {
+      baseRally: baseRallyEl.value,
+      myTime: myTimeEl.value,
+      rows: Array.from(rowsEl.querySelectorAll('.row.data')).map(r=>({
+        name: r.querySelector('.name').value,
+        diff: r.querySelector('.diff').value,
+        march: r.querySelector('.march').value
+      }))
+    };
+    localStorage.setItem('sync_base_diff_live5', JSON.stringify(data));
+  }
+  function load(){
+    const raw = localStorage.getItem('sync_base_diff_live5');
+    if(!raw){
+      baseRallyEl.value = '4:50';
+      myTimeEl.value = '0:30';
+      addRow({name:'Aさん', diff:'0',  march:'0:30'});
+      addRow({name:'Bさん', diff:'2',  march:'0:30'});
+      return;
+    }
+    try{
+      const d = JSON.parse(raw);
+      baseRallyEl.value = d.baseRally || '';
+      myTimeEl.value = d.myTime || '';
+      rowsEl.innerHTML = '';
+      (d.rows||[]).forEach(addRow);
+    }catch(e){}
+  }
+
+  function addRow(data={}){
+    const idx = rowsEl.children.length + 1;
+    const row = document.createElement('div');
+    row.className = 'row data';
+    row.innerHTML = `
+      <div class="idx">${idx}</div>
+      <input class="name" placeholder="例 Aさん" value="${data.name||''}">
+      <input class="diff mono" type="number" step="1" placeholder="±秒（例 2 / -2）" value="${data.diff??''}">
+      <input class="march mono" placeholder="例 1:10 / 70" value="${data.march||''}">
+      <div class="updown">
+        <button class="btn btn-ghost up" title="上へ">↑</button>
+        <button class="btn btn-ghost down" title="下へ">↓</button>
+      </div>
+      <div class="drag" title="ドラッグで並べ替え" data-handle>⠿</div>
+      <button class="btn btn-ghost del" title="削除">✕</button>
+    `;
+    row.querySelector('.del').addEventListener('click', ()=>{ row.remove(); renumber(); save(); renderLive(); });
+    row.querySelector('.up').addEventListener('click', ()=>{ moveRow(row,-1); });
+    row.querySelector('.down').addEventListener('click', ()=>{ moveRow(row, 1); });
+    ['input','change'].forEach(ev=>{
+      row.querySelectorAll('input').forEach(el=>el.addEventListener(ev, ()=>{ save(); renderLive(); }));
+    });
+    const handle = row.querySelector('[data-handle]');
+    handle.setAttribute('draggable','true');
+    handle.addEventListener('dragstart', e=>{
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain','');
+    });
+    handle.addEventListener('dragend', ()=>{
+      row.classList.remove('dragging');
+      renumber(); save(); renderLive();
+    });
+    rowsEl.appendChild(row);
+  }
+  function renumber(){ Array.from(rowsEl.children).forEach((r,i)=>r.querySelector('.idx').textContent = i+1); }
+  function moveRow(row, delta){
+    const siblings = Array.from(rowsEl.children);
+    const i = siblings.indexOf(row);
+    const j = clamp(i+delta, 0, siblings.length-1);
+    if(i===j) return;
+    rowsEl.insertBefore(row, (delta<0)?siblings[j]:siblings[j].nextSibling);
+    renumber(); save(); renderLive();
+  }
+  rowsEl.addEventListener('dragover', e=>{
+    e.preventDefault();
+    const dragging = rowsEl.querySelector('.row.data.dragging'); if(!dragging) return;
+    const after = getDragAfterElement(rowsEl, e.clientY);
+    if(after==null) rowsEl.appendChild(dragging); else rowsEl.insertBefore(dragging, after);
+  });
+  function getDragAfterElement(container, y){
+    const els = [...container.querySelectorAll('.row.data:not(.dragging)')];
+    return els.reduce((closest, child)=>{
+      const box=child.getBoundingClientRect(); const offset=y - box.top - box.height/2;
+      if(offset<0 && offset>closest.offset) return {offset,element:child};
+      return closest;
+    }, {offset:Number.NEGATIVE_INFINITY, element:null}).element;
+  }
+
+  function parseInputs(){
+    const B = parseMMSS(baseRallyEl.value);
+    if(B==null){ alert('基準の「集結残り時間」が正しくありません（例 4:50 / 290）'); return null; }
+    const M0 = parseMMSS(myTimeEl.value);
+    if(M0==null){ alert('自分の行軍時間が正しくありません（例 0:30 / 30）'); return null; }
+    const rows = Array.from(rowsEl.querySelectorAll('.row.data')).map(r=>{
+      const name=r.querySelector('.name').value||'(相手)';
+      const diffStr=r.querySelector('.diff').value;
+      const diff = diffStr===''?0:toInt(diffStr);
+      const march = parseMMSS(r.querySelector('.march').value);
+      return {name, diff, march};
+    });
+    for(const it of rows){
+      if(it.march==null){ alert(`${it.name} の行軍時間が正しくありません（例 1:10 / 70）`); return null; }
+      if(Number.isNaN(it.diff)){ alert(`${it.name} の差（±秒）が正しくありません（整数）`); return null; }
+    }
+    return {B, M0, rows};
+  }
+
+  function snap(){
+    const v = parseInputs(); if(!v) return;
+    lastSnap = new Date();
+    B_base = v.B;
+    items = v.rows.map(r=>({...r}));
+    snapInfo.textContent = `スナップ: ${fmtClock(lastSnap)}（ローカル）`;
+    renderOnce(v.M0);
+    startTicker(v.M0);
+  }
+
+  function renderOnce(M0){
+    const now = new Date();
+    const dt = lastSnap ? Math.floor((now - lastSnap)/1000) : 0;
+    const data = items.map(it=>{
+      const baseLeftAtSnap = B_base + it.diff;
+      const leftNow = baseLeftAtSnap - dt;
+      const timeToImpact = leftNow + it.march;
+      const impactAt = addSecs(lastSnap || now, baseLeftAtSnap + it.march);
+      const departAt = addSecs(lastSnap || now, baseLeftAtSnap + it.march - M0);
+      const departIn = (baseLeftAtSnap + it.march - M0) - dt;
+      return {...it, leftNow, timeToImpact, impactAt, departAt, departIn, baseLeftAtSnap};
+    });
+
+    const top2 = [...data].sort((a,b)=>a.timeToImpact-b.timeToImpact).slice(0,2)
+      .map(x=>`${x.name}: ${fmtClock(x.impactAt)}`).join(' / ');
+    summaryEl.innerHTML = data.length ? `最短の到着予定：<b>${top2}</b>` : '相手が未入力です';
+
+    const rows = data.map(d=>{
+      const state = buildDepartState(d.departIn);
+      return `
+        <tr>
+          <td>${d.name}</td>
+          <td class="mono">${fmtMMSS(d.march)}</td>
+          <td class="mono"><b>${fmtClock(d.impactAt)}</b></td>
+          <td class="mono count live-col" data-type="left">${fmtMMSS(d.leftNow)}</td>
+          <td class="mono count live-col" data-type="impact">${fmtMMSS(d.timeToImpact)}</td>
+          <td class="mono" data-state>
+            ${fmtClock(d.departAt)}<br>
+            <span class="small muted">${state}</span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tableWrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>集結者</th>
+            <th>行軍時間</th>
+            <th>到着時間</th>
+            <th class="live-col">集結残り時間</th>
+            <th class="live-col">到着残り時間</th>
+            <th>あなた 出発時刻 / 判断</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function buildDepartState(departIn){
+    if(departIn < -10) return `<span class="bad">【着弾後到着】</span>`;
+    if(departIn < -0.5) return `<span class="bad">【着弾後到着】${fmtMMSS(-departIn)} 経過</span>`;
+    if(departIn > 0.5)  return `<span class="warn">【待ち】${fmtMMSS(departIn)} 後</span>`;
+    return `<span class="ok">【今！】</span>`;
+  }
+
+  function startTicker(M0){
+    if(timer) clearInterval(timer);
+    timer = setInterval(()=>{
+      if(!lastSnap || B_base==null) return;
+      const now = new Date();
+      const dt = Math.floor((now - lastSnap)/1000);
+      const tbody = tableWrap.querySelector('tbody');
+      if(!tbody) return;
+
+      [...tbody.rows].forEach((tr, i)=>{
+        const it = items[i];
+        const baseLeftAtSnap = B_base + it.diff;
+        const leftNow = baseLeftAtSnap - dt;
+        const timeToImpact = leftNow + it.march;
+        tr.querySelector('td[data-type="left"]').textContent = fmtMMSS(leftNow);
+        tr.querySelector('td[data-type="impact"]').textContent = fmtMMSS(timeToImpact);
+
+        const departIn = (baseLeftAtSnap + it.march - M0) - dt;
+        const stateCell = tr.querySelector('td[data-state]');
+        if(stateCell){
+          const frozen = stateCell.dataset.frozen === '1';
+          if(!frozen){
+            let stateHtml = '';
+            if(departIn < -10){
+              stateHtml = `<span class="bad">【着弾後到着】</span>`;
+              stateCell.dataset.frozen = '1';
+            }else{
+              stateHtml = buildDepartState(departIn);
+            }
+            const lines = stateCell.innerHTML.split('<br>');
+            stateCell.innerHTML = lines[0] + `<br><span class="small muted">${stateHtml}</span>`;
+          }
+        }
+      });
+    }, 250);
+  }
+
+  function renderLive(){
+    if(!lastSnap || B_base==null) return;
+    const B = parseMMSS(baseRallyEl.value);
+    const M0 = parseMMSS(myTimeEl.value);
+    if(B==null || M0==null) return;
+    B_base = B;
+    items = Array.from(rowsEl.querySelectorAll('.row.data')).map(r=>({
+      name: r.querySelector('.name').value || '(相手)',
+      diff: (r.querySelector('.diff').value===''?0:toInt(r.querySelector('.diff').value)),
+      march: parseMMSS(r.querySelector('.march').value)
+    })).filter(x=>x.march!=null && !Number.isNaN(x.diff));
+    renderOnce(M0);
+    startTicker(M0);
+  }
+
+  function copyResult(){
+    const t = tableWrap.querySelector('table'); if(!t) return;
+    const header = ['集結者','行軍時間','到着時間'].join('\t');
+    let text = header + '\n';
+    const rows = [...t.tBodies[0].rows];
+    rows.forEach(tr=>{
+      const cols = [0,1,2].map(i=> tr.cells[i]?.innerText.replace(/\s+/g,' ').trim() || '');
+      text += cols.join('\t') + '\n';
+    });
+    navigator.clipboard.writeText(text.trim());
+    copyBtn.textContent='コピーしました'; setTimeout(()=>copyBtn.textContent='結果をコピー',1200);
+  }
+
+  snapBtn.addEventListener('click', snap);
+  addRowBtn.addEventListener('click', ()=>{ addRow(); save(); });
+  clearRowsBtn.addEventListener('click', ()=>{ rowsEl.innerHTML=''; renumber(); save(); renderLive(); });
+  copyBtn.addEventListener('click', copyResult);
+  resetBtn.addEventListener('click', ()=>{
+    if(confirm('保存された入力を消去しますか？')){
+      localStorage.removeItem('sync_base_diff_live5');
+      location.reload();
+    }
+  });
+
+  [baseRallyEl, myTimeEl].forEach(el=>el.addEventListener('input', ()=>{ save(); renderLive(); }));
+  rowsEl.addEventListener('input', ()=>{ save(); renderLive(); });
+
+  load();
+})();
+</script>
+</body>
+</html>
