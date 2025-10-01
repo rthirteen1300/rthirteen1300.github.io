@@ -2,45 +2,57 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>行軍時間管理ツール</title>
 <style>
-  :root { --bg:#0f172a; --panel:#111827; --muted:#94a3b8; --text:#e5e7eb; --acc:#22d3ee; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; }
-  html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;}
-  header{padding:16px 20px;border-bottom:1px solid #1f2937;background:#0b1220;position:sticky;top:0;z-index:10}
+  :root { --bg:#0f172a; --panel:#111827; --muted:#94a3b8; --text:#e5e7eb; --acc:#22d3ee; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --line:#1f2937; }
+  html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;-webkit-tap-highlight-color:transparent}
+  header{padding:16px 20px;border-bottom:1px solid var(--line);background:#0b1220;position:sticky;top:0;z-index:10}
   header h1{margin:0;font-size:18px;letter-spacing:.02em}
   main{max-width:1080px;margin:20px auto;padding:0 16px;}
-  .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:12px 16px;margin-bottom:16px;}
-  .row{display:grid;grid-template-columns:28px 1.1fr 110px 110px 100px 84px 36px;gap:8px;align-items:center}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  /* 入力行レイアウト */
+  .row{
+    display:grid;
+    grid-template-columns:28px 1fr 100px 110px 90px 60px 36px;
+    gap:8px;
+    align-items:center;
+  }
   .row.header{font-size:12px;color:var(--muted)}
   .row + .row{margin-top:8px}
   .idx{color:var(--muted);text-align:center;user-select:none}
-  input,button{background:#0b1220;border:1px solid #1f2937;color:#e5e7eb;border-radius:10px;padding:8px 10px;font-size:14px;outline:none}
+  input,button{background:#0b1220;border:1px solid var(--line);color:#e5e7eb;border-radius:12px;padding:10px 10px;font-size:14px;outline:none}
   input::placeholder{color:#64748b}
+  input.name{width:100%;min-width:140px}
+  input.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
   button{cursor:pointer}
-  .btn{padding:8px 12px;border-radius:10px;border:1px solid #1f2937}
+  .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--line)}
   .btn-ghost{background:transparent}
   .btn-acc{background:var(--acc);color:#0b1220;border:none}
   .btn-ok{background:var(--ok);color:#0b1220;border:none}
   .grid{display:grid;gap:10px}
   .two{grid-template-columns:1fr 1fr}
-  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
   .hint{color:var(--muted);font-size:12px}
-  table{width:100%;border-collapse:collapse}
-  th,td{border-bottom:1px solid #1f2937;padding:8px;text-align:left;font-size:14px;vertical-align:middle;white-space:nowrap}
-  th{color:var(--muted);font-weight:600}
-  .small{font-size:12px}
-  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
   .drag{cursor:grab} .dragging{opacity:.6}
   .updown{display:flex;gap:6px}
   .count{font-variant-numeric:tabular-nums}
   .compact-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left;font-size:14px;vertical-align:middle;white-space:nowrap}
+  th{color:var(--muted);font-weight:600}
+  .small{font-size:12px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
   th.live-col, td.live-col { width: 92px; max-width: 92px; }
   @media (max-width:1080px){
-    .row{grid-template-columns:24px 1fr 100px 100px 92px 78px 36px}
+    .row{grid-template-columns:24px 1fr 90px 100px 80px 60px 32px}
     .two{grid-template-columns:1fr}
     .compact-grid{grid-template-columns:1fr}
     th.live-col, td.live-col { width: 86px; max-width: 86px; }
+  }
+  @media (max-width:640px){
+    .row{grid-template-columns:24px 1fr 70px 80px 70px 50px 28px;gap:6px}
+    input,button{font-size:16px;padding:12px}
+    input.name{min-width:0}
   }
 </style>
 </head>
@@ -390,3 +402,6 @@
 </script>
 </body>
 </html>
+
+
+
