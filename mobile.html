@@ -71,11 +71,10 @@
       <div>#</div><div>集結者</div><div>差(秒)</div><div>行軍(1:10/70)</div><div>↑</div><div>↓</div><div>✕</div>
     </div>
     <div id="rows"></div>
-      <div class="rows-tools">
-        <button class="btn btn-ghost" id="addRow">＋ 行を追加</button>
-        <button class="btn btn-ghost" id="clearRows">集結者を全消去</button>
+    <div class="rows-tools">
+      <button class="btn btn-ghost" id="addRow">＋ 行を追加</button>
+      <button class="btn btn-ghost" id="clearRows">集結者を全消去</button>
     </div>
-
   </section>
 
   <section class="card">
@@ -124,6 +123,7 @@
   let B_base=null;
   let items=[];
   let timer=null;
+  let displayOrder=[];
 
   const toInt=v=>Number.parseInt(v,10);
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -161,10 +161,10 @@
         march:r.querySelector('.march').value
       }))
     };
-    localStorage.setItem('mobile_portrait_sync_v3',JSON.stringify(data));
+    localStorage.setItem('mobile_portrait_sync_v4',JSON.stringify(data));
   }
   function load(){
-    const raw=localStorage.getItem('mobile_portrait_sync_v3');
+    const raw=localStorage.getItem('mobile_portrait_sync_v4');
     if(!raw){
       baseRallyEl.value='4:50';
       myTimeEl.value='0:30';
@@ -254,18 +254,23 @@
   function renderOnce(M0){
     const now=new Date();
     const dt=lastSnap?Math.floor((now-lastSnap)/1000):0;
-    const data=items.map(it=>{
+    const data=items.map((it,idx)=>{
       const baseLeftAtSnap=B_base+it.diff;
       const leftNow=baseLeftAtSnap-dt;
       const timeToImpact=leftNow+it.march;
       const impactAt=addSecs(lastSnap||now,baseLeftAtSnap+it.march);
       const departAt=addSecs(lastSnap||now,baseLeftAtSnap+it.march-M0);
       const departIn=(baseLeftAtSnap+it.march-M0)-dt;
-      return {...it,leftNow,timeToImpact,impactAt,departAt,departIn,baseLeftAtSnap};
+      return {...it,leftNow,timeToImpact,impactAt,departAt,departIn,baseLeftAtSnap,idx};
     });
-    const top2=[...data].sort((a,b)=>a.timeToImpact-b.timeToImpact).slice(0,2).map(x=>`${x.name}: ${fmtClock(x.impactAt)}`).join(' / ');
-    summaryEl.innerHTML=data.length?`最短の到着予定：<b>${top2}</b>`:'集結者が未入力です';
-    const html=data.map(d=>{
+
+    const sorted=[...data].sort((a,b)=>a.timeToImpact-b.timeToImpact);
+    displayOrder = sorted.map(d=>d.idx);
+
+    const top2=sorted.slice(0,2).map(x=>`${x.name}: ${fmtClock(x.impactAt)}`).join(' / ');
+    summaryEl.innerHTML=sorted.length?`最短の到着予定：<b>${top2}</b>`:'集結者が未入力です';
+
+    const html=sorted.map(d=>{
       const departState=buildDepartState(d.departIn);
       return `
         <div class="pill">
@@ -295,7 +300,8 @@
       const pills=[...cardsEl.querySelectorAll('.pill')];
       if(!pills.length) return;
       pills.forEach((pill,i)=>{
-        const it=items[i];
+        const it=items[displayOrder[i]];
+        if(!it) return;
         const baseLeftAtSnap=B_base+it.diff;
         const leftNow=baseLeftAtSnap-dt;
         const timeToImpact=leftNow+it.march;
@@ -333,9 +339,10 @@
     if(!cardsEl.children.length) return;
     const header=['集結者','行軍時間','到着時間'].join('\t');
     let text=header+'\n';
-    items.forEach((it,idx)=>{
-      const pill=cardsEl.children[idx];
-      if(!pill) return;
+    const pills=[...cardsEl.querySelectorAll('.pill')];
+    pills.forEach((pill,i)=>{
+      const it=items[displayOrder[i]];
+      if(!it) return;
       const name=pill.querySelector('.left .name')?.textContent?.trim()||it.name||'';
       const march=fmtMMSS(it.march);
       const impact=pill.querySelector('.right')?.textContent.match(/到着\s(\d{2}:\d{2}:\d{2})/)?.[1]||'';
@@ -351,7 +358,7 @@
   copyBtn.addEventListener('click',copyResult);
   resetBtn.addEventListener('click',()=>{
     if(confirm('保存された入力を消去しますか？')){
-      localStorage.removeItem('mobile_portrait_sync_v3');
+      localStorage.removeItem('mobile_portrait_sync_v4');
       location.reload();
     }
   });
