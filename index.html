@@ -44,6 +44,21 @@
   }
 </style>
 </head>
+  <script>
+  (function () {
+    if (location.search.includes('desktop=1')) return;
+    const isPortrait = matchMedia('(orientation:portrait)').matches;
+    const isNarrow = Math.min(screen.width, screen.height) <= 640;
+    if (isPortrait && isNarrow) {
+      const target = 'mobile.html';
+      if (!location.pathname.endsWith(target)) {
+        location.replace(target);
+      }
+    }
+  })();
+</script>
+
+  
 <body>
 <header><h1>行軍時間管理ツール</h1></header>
 <main>
