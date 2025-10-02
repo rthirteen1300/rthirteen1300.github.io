@@ -44,21 +44,6 @@
   }
 </style>
 </head>
-  <script>
-  (function () {
-    if (location.search.includes('desktop=1')) return;
-    const isPortrait = matchMedia('(orientation:portrait)').matches;
-    const isNarrow = Math.min(screen.width, screen.height) <= 640;
-    if (isPortrait && isNarrow) {
-      const target = 'mobile.html';
-      if (!location.pathname.endsWith(target)) {
-        location.replace(target);
-      }
-    }
-  })();
-</script>
-
-  
 <body>
 <header><h1>行軍時間管理ツール</h1></header>
 <main>
@@ -134,6 +119,7 @@
   let B_base = null;
   let items = [];
   let timer = null;
+  let displayOrder = [];
 
   const toInt = v => Number.parseInt(v, 10);
   const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
@@ -282,21 +268,23 @@
   function renderOnce(M0){
     const now = new Date();
     const dt = lastSnap ? Math.floor((now - lastSnap)/1000) : 0;
-    const data = items.map(it=>{
+    const data = items.map((it, idx)=>{
       const baseLeftAtSnap = B_base + it.diff;
       const leftNow = baseLeftAtSnap - dt;
       const timeToImpact = leftNow + it.march;
       const impactAt = addSecs(lastSnap || now, baseLeftAtSnap + it.march);
       const departAt = addSecs(lastSnap || now, baseLeftAtSnap + it.march - M0);
       const departIn = (baseLeftAtSnap + it.march - M0) - dt;
-      return {...it, leftNow, timeToImpact, impactAt, departAt, departIn, baseLeftAtSnap};
+      return {...it, leftNow, timeToImpact, impactAt, departAt, departIn, baseLeftAtSnap, idx};
     });
 
-    const top2 = [...data].sort((a,b)=>a.timeToImpact-b.timeToImpact).slice(0,2)
-      .map(x=>`${x.name}: ${fmtClock(x.impactAt)}`).join(' / ');
-    summaryEl.innerHTML = data.length ? `最短の到着予定：<b>${top2}</b>` : '集結者が未入力です';
+    const sorted = [...data].sort((a,b)=>a.timeToImpact - b.timeToImpact);
+    displayOrder = sorted.map(d=>d.idx);
 
-    const rows = data.map(d=>{
+    const top2 = sorted.slice(0,2).map(x=>`${x.name}: ${fmtClock(x.impactAt)}`).join(' / ');
+    summaryEl.innerHTML = sorted.length ? `最短の到着予定：<b>${top2}</b>` : '集結者が未入力です';
+
+    const rows = sorted.map(d=>{
       const state = buildDepartState(d.departIn);
       return `
         <tr>
@@ -347,7 +335,8 @@
       if(!tbody) return;
 
       [...tbody.rows].forEach((tr, i)=>{
-        const it = items[i];
+        const it = items[displayOrder[i]];
+        if(!it) return;
         const baseLeftAtSnap = B_base + it.diff;
         const leftNow = baseLeftAtSnap - dt;
         const timeToImpact = leftNow + it.march;
