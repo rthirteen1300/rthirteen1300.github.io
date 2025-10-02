@@ -73,27 +73,28 @@
       <div id="rows"></div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-acc" id="addRow">＋ 行を追加</button>
-        <button class="btn btn-ghost" id="clearRows">相手を全消去</button>
+        <button class="btn btn-ghost" id="clearRows">集結者を全消去</button>
       </div>
     </div>
   </section>
 
   <section class="card">
     <h3 style="margin:0 0 6px 0;">計算結果</h3>
-    <div id="summary" class="hint" style="margin-bottom:6px;">スナップすると要約が出ます。</div>
+    <div id="summary" class="hint" style="margin-bottom:6px;">スナップすると結果が出ます。</div>
     <div id="tableWrap"></div>
   </section>
     <section class="card">
     <h3 style="margin:0 0 6px 0;">使い方</h3>
     <ul style="line-height:1.6; margin:0; padding-left:18px;">
-      <li><b>基準とする任意の集結残り時間</b> を入力（例: <code>4:50</code> や <code>290</code>）。</li>
-      <li><b>集結者の集結残り時間が基準の時間になった瞬間にスナップ（基準時間の設定）</b> を押すことで時間を一致させ、リアルタイムでカウントダウンが進みます。</li>
+      <li><b>基準とする任意の集結残り時間</b> を入力（例: <code>4:50</code> や <code>30</code>）。</li>
+      <li><b>集結者の集結残り時間が基準時間になった直後にスナップ（基準時間の設定）</b> ボタンを押すことで時間が一致し、リアルタイムでカウントダウンが進みます。</li>
       <li><b>自分の行軍時間</b> を更新（例: <code>0:30</code> や <code>30</code>）。</li>
-      <li><b>集結者一覧</b> に相手を追加し、集結者名・基準との差（±秒）・行軍時間を入力。</li>
-      <li><b>計算結果</b> で、相手の行軍時間や到着時刻、自分の行軍タイミングの判断（今！／待ち／遅れ）を確認できます。</li>
+      <li><b>集結者一覧</b> に集結者名・基準との差（±秒）・行軍時間を入力。集結者の追加も可能。</li>
+      <li><b>計算結果</b> で、集結者の行軍時間や到着時刻、自分の行軍タイミングの判断（今！／待ち／遅れ）を確認できます。</li>
       <li>相手の順番は「↑」「↓」ボタンや「⠿」ドラッグで入れ替え可能。</li>
-      <li><b>結果をコピー</b> で「集結者」「行軍時間」「到着時間」の3列がコピーされます。</li>
+      <li><b>結果をコピー</b> を押すと「集結者」「行軍時間」「到着時間」の3列がコピーされます。</li>
       <li>入力内容はブラウザに保存されます。「入力の保存をクリア」でリセット可能。</li>
+      <li>現時点ではPCやサブ携帯(横向き)での利用を想定。スマホ縦画面には未対応</li>
     </ul>
   </section>
 
@@ -277,7 +278,7 @@
 
     const top2 = [...data].sort((a,b)=>a.timeToImpact-b.timeToImpact).slice(0,2)
       .map(x=>`${x.name}: ${fmtClock(x.impactAt)}`).join(' / ');
-    summaryEl.innerHTML = data.length ? `最短の到着予定：<b>${top2}</b>` : '相手が未入力です';
+    summaryEl.innerHTML = data.length ? `最短の到着予定：<b>${top2}</b>` : '集結者が未入力です';
 
     const rows = data.map(d=>{
       const state = buildDepartState(d.departIn);
