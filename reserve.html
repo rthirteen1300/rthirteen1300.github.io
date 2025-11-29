@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>WOS 教育部長予約システム</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 0.3rem;
+    }
+    .small {
+      font-size: 0.8rem;
+      color: #555;
+    }
+    .config {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 0.7rem 0 0.5rem;
+    }
+    label {
+      font-size: 0.9rem;
+    }
+    input, button {
+      font-size: 0.95rem;
+      padding: 4px 6px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    th {
+      background: #f0f0f0;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    td.slot-cell {
+      cursor: pointer;
+      min-width: 110px;
+    }
+    td.slot-cell.free:hover {
+      outline: 2px solid #888;
+    }
+    td.slot-cell.selected {
+      outline: 3px solid #0077cc;
+      box-shadow: 0 0 0 1px #0077cc inset;
+    }
+    td.reserved {
+      background: #ffe0e0;
+      cursor: default;
+    }
+    td.reserved small {
+      display: block;
+      font-size: 0.72rem;
+      color: #555;
+    }
+    .form-area {
+      margin-top: 1rem;
+      padding: 8px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+    }
+    .form-area h2 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 70px 1fr;
+      gap: 4px 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    #message {
+      margin-top: 4px;
+      font-size: 0.85rem;
+    }
+    #message.ok {
+      color: #007000;
+    }
+    #message.ng {
+      color: #b00000;
+    }
+  </style>
+</head>
+<body>
+  <h1>WOS 教育部長 予約システム</h1>
+  <p class="small">
+    ・日付を指定すると、その日の <strong>教育部長</strong> 予約状況が表示されます。<br>
+    ・時間は 8:45 〜 翌日 8:45 の 24時間を 30分刻み（48枠）で表示します。<br>
+    ・赤セル：予約済（名前＋ID）／グレー「空き」：クリックして予約可能。<br>
+    ・キャンセル・時間変更は管理者がシートを直接編集してください。
+  </p>
+
+  <div class="config">
+    <label>
+      日付：
+      <input type="date" id="dateInput">
+    </label>
+    <button id="reloadBtn">この日の予約を再読み込み</button>
+  </div>
+
+  <div id="tableContainer"></div>
+
+  <div class="form-area">
+    <h2>選択した枠を予約</h2>
+    <div class="form-grid">
+      <div>対象：</div>
+      <div id="selectedSlotLabel">（枠をクリックしてください）</div>
+
+      <label for="playerId">ID：</label>
+      <input id="playerId" type="text" placeholder="プレイヤーID（必須）">
+
+      <label for="playerName">名前：</label>
+      <input id="playerName" type="text" placeholder="ゲーム内名（必須）">
+    </div>
+    <button id="reserveBtn" disabled>この枠を予約する</button>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    // ===== 設定ここから =====
+    // Apps Script WebアプリのURL（/exec で終わる）
+    const API_BASE_URL = 'https://script.google.com/macros/s/XXXXXXXXXXXX/exec';
+
+    // 8:45 から 30分刻みで 48枠（8:45〜翌日 8:15 開始分）
+    const TIME_SLOTS = generateTimeSlots('08:45', 30, 48);
+    // ===== 設定ここまで =====
+
+    let currentDate = '';
+    let currentReservations = [];
+    let selectedTimeSlot = null;
+
+    function generateTimeSlots(start, stepMinutes, count) {
+      const [hStr, mStr] = start.split(':');
+      let h = parseInt(hStr, 10);
+      let m = parseInt(mStr, 10);
+      const slots = [];
+      for (let i = 0; i < count; i++) {
+        slots.push(
+          String(h).padStart(2, '0') + ':' +
+          String(m).padStart(2, '0')
+        );
+        m += stepMinutes;
+        if (m >= 60) {
+          h += Math.floor(m / 60);
+          m = m % 60;
+        }
+      }
+      return slots;
+    }
+
+    function setTodayToDateInput() {
+      const input = document.getElementById('dateInput');
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      input.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    async function loadReservations() {
+      const dateInput = document.getElementById('dateInput');
+      const date = dateInput.value;
+      if (!date) return;
+
+      currentDate = date;
+      setMessage('', '');
+
+      try {
+        const url = `${API_BASE_URL}?mode=slots&date=${encodeURIComponent(date)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.message || '取得に失敗しました');
+        }
+        currentReservations = data.reservations || [];
+        renderTable();
+      } catch (err) {
+        console.error(err);
+        setMessage('予約状況の取得に失敗しました: ' + err.message, 'ng');
+      }
+    }
+
+    function renderTable() {
+      const container = document.getElementById('tableContainer');
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const trHead = document.createElement('tr');
+
+      const thTime = document.createElement('th');
+      thTime.textContent = '時間';
+      trHead.appendChild(thTime);
+
+      const thRole = document.createElement('th');
+      thRole.textContent = '教育部長';
+      trHead.appendChild(thRole);
+
+      thead.appendChild(trHead);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+
+      TIME_SLOTS.forEach(time => {
+        const tr = document.createElement('tr');
+
+        const tdTime = document.createElement('td');
+        tdTime.textContent = time;
+        tr.appendChild(tdTime);
+
+        const td = document.createElement('td');
+        td.classList.add('slot-cell');
+
+        const r = findReservation(time);
+        if (r) {
+          td.classList.add('reserved');
+          td.innerHTML = `
+            予約済
+            <small>${escapeHtml(r.playerName)}<br>ID: ${escapeHtml(r.playerId)}</small>
+          `;
+        } else {
+          td.classList.add('free');
+          td.textContent = '空き';
+          td.addEventListener('click', () => onSelectSlot(td, time));
+        }
+
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      container.innerHTML = '';
+      container.appendChild(table);
+
+      // 選択状態をリセット
+      selectedTimeSlot = null;
+      document.getElementById('selectedSlotLabel').textContent = '（枠をクリックしてください）';
+      document.getElementById('reserveBtn').disabled = true;
+    }
+
+    function findReservation(timeSlot) {
+      return currentReservations.find(r =>
+        r.timeSlot === timeSlot
+      );
+    }
+
+    function onSelectSlot(td, timeSlot) {
+      // 既に選択している枠のハイライトを解除
+      document.querySelectorAll('td.slot-cell.selected').forEach(cell => {
+        cell.classList.remove('selected');
+      });
+
+      td.classList.add('selected');
+      selectedTimeSlot = timeSlot;
+
+      const label = document.getElementById('selectedSlotLabel');
+      label.textContent = `${currentDate} / ${timeSlot}`;
+      document.getElementById('reserveBtn').disabled = false;
+      setMessage('', '');
+    }
+
+    function setMessage(msg, type) {
+      const el = document.getElementById('message');
+      el.textContent = msg;
+      el.className = '';
+      if (type) el.classList.add(type);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function reserveSelectedSlot() {
+      if (!selectedTimeSlot || !currentDate) {
+        setMessage('枠が選択されていません', 'ng');
+        return;
+      }
+      const playerId = document.getElementById('playerId').value.trim();
+      const playerName = document.getElementById('playerName').value.trim();
+      if (!playerId || !playerName) {
+        setMessage('ID と 名前を入力してください', 'ng');
+        return;
+      }
+
+      setMessage('予約送信中…', '');
+
+      try {
+        const res = await fetch(API_BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: currentDate,
+            timeSlot: selectedTimeSlot,
+            playerId,
+            playerName
+          })
+        });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.success) {
+          setMessage(data.message || '予約に失敗しました', 'ng');
+          return;
+        }
+
+        setMessage('予約が完了しました', 'ok');
+        await loadReservations(); // 最新状態を再取得して即反映
+      } catch (err) {
+        console.error(err);
+        setMessage('予約リクエストに失敗しました: ' + err.message, 'ng');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setTodayToDateInput();
+      document.getElementById('reloadBtn').addEventListener('click', loadReservations);
+      document.getElementById('reserveBtn').addEventListener('click', reserveSelectedSlot);
+      loadReservations();
+    });
+  </script>
+</body>
+</html>
