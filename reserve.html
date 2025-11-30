@@ -19,19 +19,10 @@
       font-size: 0.8rem;
       color: #555;
     }
-    .config {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin: 0.7rem 0 0.5rem;
-    }
-    label {
-      font-size: 0.9rem;
-    }
-    input, button {
+    .date-label {
+      margin: 0.5rem 0;
       font-size: 0.95rem;
-      padding: 4px 6px;
+      font-weight: bold;
     }
     table {
       border-collapse: collapse;
@@ -87,6 +78,10 @@
       align-items: center;
       margin-bottom: 6px;
     }
+    input, button {
+      font-size: 0.95rem;
+      padding: 4px 6px;
+    }
     #message {
       margin-top: 4px;
       font-size: 0.85rem;
@@ -102,18 +97,15 @@
 <body>
   <h1>WOS 教育部長 予約システム</h1>
   <p class="small">
-    ・日付を指定すると、その日の <strong>教育部長</strong> 予約状況が表示されます。<br>
+    ・対象日は <strong>2026/01/01（木）</strong> 固定です。<br>
     ・時間は 8:45 〜 翌日 8:45 の 24時間を 30分刻み（48枠）で表示します。<br>
     ・赤セル：予約済（名前＋ID）／グレー「空き」：クリックして予約可能。<br>
     ・キャンセル・時間変更は管理者がシートを直接編集してください。
   </p>
 
-  <div class="config">
-    <label>
-      日付：
-      <input type="date" id="dateInput">
-    </label>
-    <button id="reloadBtn">この日の予約を再読み込み</button>
+  <div class="date-label">
+    対象日：<span id="currentDateLabel"></span>
+    <button id="reloadBtn" style="margin-left:8px;">再読み込み</button>
   </div>
 
   <div id="tableContainer"></div>
@@ -137,13 +129,15 @@
   <script>
     // ===== 設定ここから =====
     // Apps Script WebアプリのURL（/exec で終わる）
-    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbwKIW47Q40YoIHTduggYNQv-XuiDQJSUJeNV1w3rCIiMWK8KjSeKm23E6CqckE1jclSNQ/exec';
+    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbxUPZuJ_bver776dhj6thw78M2HhFqyL3P3heWr2ZGv1glOmTrOI7faayBHGPkcTyCvyw/exec';
+
+    // 対象日を固定（2026-01-01）
+    const TARGET_DATE = '2026-01-01';
 
     // 8:45 から 30分刻みで 48枠（8:45〜翌日 8:15 開始分）
     const TIME_SLOTS = generateTimeSlots('08:45', 30, 48);
     // ===== 設定ここまで =====
 
-    let currentDate = '';
     let currentReservations = [];
     let selectedTimeSlot = null;
 
@@ -166,25 +160,12 @@
       return slots;
     }
 
-    function setTodayToDateInput() {
-      const input = document.getElementById('dateInput');
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      input.value = `${yyyy}-${mm}-${dd}`;
-    }
-
     async function loadReservations() {
-      const dateInput = document.getElementById('dateInput');
-      const date = dateInput.value;
-      if (!date) return;
-
-      currentDate = date;
       setMessage('', '');
+      document.getElementById('currentDateLabel').textContent = TARGET_DATE + '（木）';
 
       try {
-        const url = `${API_BASE_URL}?mode=slots&date=${encodeURIComponent(date)}`;
+        const url = `${API_BASE_URL}?mode=slots&date=${encodeURIComponent(TARGET_DATE)}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
@@ -271,7 +252,7 @@
       selectedTimeSlot = timeSlot;
 
       const label = document.getElementById('selectedSlotLabel');
-      label.textContent = `${currentDate} / ${timeSlot}`;
+      label.textContent = `${TARGET_DATE} / ${timeSlot}`;
       document.getElementById('reserveBtn').disabled = false;
       setMessage('', '');
     }
@@ -294,7 +275,7 @@
     }
 
     async function reserveSelectedSlot() {
-      if (!selectedTimeSlot || !currentDate) {
+      if (!selectedTimeSlot) {
         setMessage('枠が選択されていません', 'ng');
         return;
       }
@@ -310,9 +291,9 @@
       try {
         const res = await fetch(API_BASE_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // Content-Type を明示しない（プリフライト回避）
           body: JSON.stringify({
-            date: currentDate,
+            date: TARGET_DATE,
             timeSlot: selectedTimeSlot,
             playerId,
             playerName
@@ -335,7 +316,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      setTodayToDateInput();
       document.getElementById('reloadBtn').addEventListener('click', loadReservations);
       document.getElementById('reserveBtn').addEventListener('click', reserveSelectedSlot);
       loadReservations();
