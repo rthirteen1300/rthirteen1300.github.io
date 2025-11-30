@@ -135,30 +135,29 @@
     const TARGET_DATE = '2026-01-01';
 
     // 8:45 から 30分刻みで 48枠（8:45〜翌日 8:15 開始分）
-    const TIME_SLOTS = generateTimeSlots('08:45', 30, 48);
+    const TIME_SLOTS = generateNormalizedTimeSlots(8, 45, 30, 48);
     // ===== 設定ここまで =====
 
     let currentReservations = [];
     let selectedTimeSlot = null;
 
-    function generateTimeSlots(start, stepMinutes, count) {
-      const [hStr, mStr] = start.split(':');
-      let h = parseInt(hStr, 10);
-      let m = parseInt(mStr, 10);
-      const slots = [];
-      for (let i = 0; i < count; i++) {
-        slots.push(
-          String(h).padStart(2, '0') + ':' +
-          String(m).padStart(2, '0')
-        );
-        m += stepMinutes;
-        if (m >= 60) {
-          h += Math.floor(m / 60);
-          m = m % 60;
-        }
-      }
-      return slots;
-    }
+function generateNormalizedTimeSlots(startHour, startMinute, stepMinutes, count) {
+  const slots = [];
+  const DAY_MINUTES = 24 * 60;
+  const startTotal = startHour * 60 + startMinute;
+
+  for (let i = 0; i < count; i++) {
+    const total = startTotal + stepMinutes * i;
+    const mod = total % DAY_MINUTES;        // 0〜1439 に丸める
+    const h = Math.floor(mod / 60);
+    const m = mod % 60;
+    slots.push(
+      String(h).padStart(2, '0') + ':' +
+      String(m).padStart(2, '0')
+    );
+  }
+  return slots;
+}
 
     async function loadReservations() {
       setMessage('', '');
