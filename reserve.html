@@ -165,8 +165,8 @@
       document.getElementById('currentDateLabel').textContent = TARGET_DATE + '（木）';
 
       try {
-        const url = `${API_BASE_URL}?mode=slots&date=${encodeURIComponent(TARGET_DATE)}`;
-        const res = await fetch(url);
+        // 日付パラメータを付けず、固定日としてAPI側が処理
+        const res = await fetch(API_BASE_URL);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (!data.success) {
@@ -293,7 +293,6 @@
           method: 'POST',
           // Content-Type を明示しない（プリフライト回避）
           body: JSON.stringify({
-            date: TARGET_DATE,
             timeSlot: selectedTimeSlot,
             playerId,
             playerName
