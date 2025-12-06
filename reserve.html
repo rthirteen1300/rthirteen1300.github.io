@@ -1,323 +1,328 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>WOS 教育部長予約システム</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>WOS 教育部長 予約システム</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
-      font-family: system-ui, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
       max-width: 900px;
       margin: 0 auto;
-      padding: 16px;
+      background: #fff;
+      padding: 20px 30px 40px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
     h1 {
-      font-size: 1.4rem;
-      margin-bottom: 0.3rem;
+      font-size: 22px;
+      margin-bottom: 8px;
     }
-    .small {
-      font-size: 0.8rem;
+    .note {
+      font-size: 12px;
       color: #555;
+      line-height: 1.6;
+      margin-bottom: 12px;
     }
-    .date-label {
-      margin: 0.5rem 0;
-      font-size: 0.95rem;
-      font-weight: bold;
+    .target-row {
+      margin: 10px 0 15px;
+      font-size: 14px;
     }
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-top: 0.5rem;
+      margin-bottom: 20px;
+      font-size: 13px;
     }
     th, td {
-      border: 1px solid #ccc;
-      padding: 4px 6px;
+      border: 1px solid #ddd;
+      padding: 6px 8px;
       text-align: center;
-      font-size: 0.85rem;
     }
     th {
       background: #f0f0f0;
-      position: sticky;
-      top: 0;
-      z-index: 1;
+      font-weight: bold;
     }
     td.slot-cell {
       cursor: pointer;
-      min-width: 110px;
+      user-select: none;
     }
-    td.slot-cell.free:hover {
-      outline: 2px solid #888;
+    td.free {
+      background: #fff;
     }
-    td.slot-cell.selected {
-      outline: 3px solid #0077cc;
-      box-shadow: 0 0 0 1px #0077cc inset;
+    td.free:hover {
+      background: #e8f4ff;
     }
     td.reserved {
-      background: #ffe0e0;
+      background: #ffe4e4;
+      color: #a00;
+      font-weight: bold;
       cursor: default;
     }
-    td.reserved small {
-      display: block;
-      font-size: 0.72rem;
-      color: #555;
+    .selected {
+      outline: 2px solid #0078d7;
     }
-    .form-area {
-      margin-top: 1rem;
-      padding: 8px;
-      border: 1px solid #ccc;
-      background: #fafafa;
+    .form-section {
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+      font-size: 14px;
     }
-    .form-area h2 {
-      margin: 0 0 8px;
-      font-size: 1.05rem;
+    .form-row {
+      margin: 6px 0;
     }
-    .form-grid {
-      display: grid;
-      grid-template-columns: 70px 1fr;
-      gap: 4px 8px;
-      align-items: center;
-      margin-bottom: 6px;
+    .form-row label {
+      display: inline-block;
+      width: 70px;
     }
-    input, button {
-      font-size: 0.95rem;
+    input[type="text"] {
+      width: 200px;
       padding: 4px 6px;
+      font-size: 14px;
     }
-    #message {
-      margin-top: 4px;
-      font-size: 0.85rem;
+    button {
+      padding: 6px 14px;
+      font-size: 14px;
+      cursor: pointer;
     }
-    #message.ok {
-      color: #007000;
+    .btn-primary {
+      background: #0078d7;
+      border: none;
+      color: #fff;
     }
-    #message.ng {
-      color: #b00000;
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .status {
+      margin-top: 6px;
+      font-size: 13px;
+    }
+    .status.error {
+      color: #c00;
+    }
+    .status.success {
+      color: #0a0;
     }
   </style>
 </head>
 <body>
+<div class="container">
   <h1>WOS 教育部長 予約システム</h1>
-  <p class="small">
+  <div class="note">
     ・対象日は <strong>2026/01/01（木）</strong> 固定です。<br>
     ・時間は 8:45 〜 翌日 8:45 の 24時間を 30分刻み（48枠）で表示します。<br>
-    ・赤セル：予約済（名前＋ID）／グレー「空き」：クリックして予約可能。<br>
+    ・セル：予約済 → 名前 / グレー表示、 空き → クリックして予約可能。<br>
     ・キャンセル・時間変更は管理者がシートを直接編集してください。
-  </p>
-
-  <div class="date-label">
-    対象日：<span id="currentDateLabel"></span>
-    <button id="reloadBtn" style="margin-left:8px;">再読み込み</button>
   </div>
 
-  <div id="tableContainer"></div>
+  <div class="target-row">
+    対象日：<span id="target-date">2026-01-01（木）</span>
+    <button id="reload-btn">再読み込み</button>
+  </div>
 
-  <div class="form-area">
-    <h2>選択した枠を予約</h2>
-    <div class="form-grid">
-      <div>対象：</div>
-      <div id="selectedSlotLabel">（枠をクリックしてください）</div>
+  <table id="slot-table">
+    <thead>
+      <tr>
+        <th style="width: 120px;">時間</th>
+        <th>教育部長</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- JS で埋め込み -->
+    </tbody>
+  </table>
 
-      <label for="playerId">ID：</label>
-      <input id="playerId" type="text" placeholder="プレイヤーID（必須）">
-
-      <label for="playerName">名前：</label>
-      <input id="playerName" type="text" placeholder="ゲーム内名（必須）">
+  <div class="form-section">
+    <div class="form-row">
+      <strong>選択した枠を予約</strong>
     </div>
-    <button id="reserveBtn" disabled>この枠を予約する</button>
-    <div id="message"></div>
+    <div class="form-row">
+      <label>対象：</label>
+      <span id="selected-slot-label">（枠をクリックしてください）</span>
+    </div>
+    <div class="form-row">
+      <label for="player-id">ID：</label>
+      <input type="text" id="player-id" placeholder="プレイヤーID（必須）">
+    </div>
+    <div class="form-row">
+      <label for="player-name">名前：</label>
+      <input type="text" id="player-name" placeholder="例）テスト">
+    </div>
+    <div class="form-row">
+      <button class="btn-primary" id="reserve-btn">この枠を予約する</button>
+    </div>
+    <div class="status" id="status"></div>
   </div>
+</div>
 
-  <script>
-    // ===== 設定ここから =====
-    // Apps Script WebアプリのURL（/exec で終わる）
-    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycby20zNlQilRZufe315_K8jLXvpjyCm_lbRLgMjpDhBtW7C0fRGwdCrtVXS14rNly8wV5w/exec';
+<script>
+  // ★ここを自分の Web アプリ URL にする
+  const API_BASE_URL = 'https://script.google.com/macros/s/AKfycby20zNlQilRZufe315_K8jLXvpjyCm_lbRLgMjpDhBtW7C0fRGwdCrtVXS14rNly8wV5w/exec';
 
-    // 対象日を固定（2026-01-01）
-    const TARGET_DATE = '2026-01-01';
+  const TARGET_DATE_TEXT = '2026-01-01（木）';
 
-    // 8:45 から 30分刻みで 48枠（8:45〜翌日 8:15 開始分）
-    const TIME_SLOTS = generateNormalizedTimeSlots(8, 45, 30, 48);
-    // ===== 設定ここまで =====
+  // 8:45 から 30分刻みで 48枠（8:45〜翌日 8:15）
+  const TIME_SLOTS = generateNormalizedTimeSlots(8, 45, 30, 49);
 
-    let currentReservations = [];
-    let selectedTimeSlot = null;
+  let reservations = [];
+  let selectedTimeSlot = null;
 
-function generateNormalizedTimeSlots(startHour, startMinute, stepMinutes, count) {
-  const slots = [];
-  const DAY_MINUTES = 24 * 60;
-  const startTotal = startHour * 60 + startMinute;
+  function generateNormalizedTimeSlots(startHour, startMinute, stepMinutes, count) {
+    const slots = [];
+    const DAY_MINUTES = 24 * 60;
+    const startTotal = startHour * 60 + startMinute;
 
-  for (let i = 0; i < count; i++) {
-    const total = startTotal + stepMinutes * i;
-    const mod = total % DAY_MINUTES;        // 0〜1439 に丸める
-    const h = Math.floor(mod / 60);
-    const m = mod % 60;
-    slots.push(
-      String(h).padStart(2, '0') + ':' +
-      String(m).padStart(2, '0')
-    );
-  }
-  return slots;
-}
-
-    async function loadReservations() {
-      setMessage('', '');
-      document.getElementById('currentDateLabel').textContent = TARGET_DATE + '（木）';
-
-      try {
-        // 日付パラメータを付けず、固定日としてAPI側が処理
-        const res = await fetch(API_BASE_URL);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (!data.success) {
-          throw new Error(data.message || '取得に失敗しました');
-        }
-        currentReservations = data.reservations || [];
-        renderTable();
-      } catch (err) {
-        console.error(err);
-        setMessage('予約状況の取得に失敗しました: ' + err.message, 'ng');
-      }
-    }
-
-    function renderTable() {
-      const container = document.getElementById('tableContainer');
-      const table = document.createElement('table');
-      const thead = document.createElement('thead');
-      const trHead = document.createElement('tr');
-
-      const thTime = document.createElement('th');
-      thTime.textContent = '時間';
-      trHead.appendChild(thTime);
-
-      const thRole = document.createElement('th');
-      thRole.textContent = '教育部長';
-      trHead.appendChild(thRole);
-
-      thead.appendChild(trHead);
-      table.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
-
-      TIME_SLOTS.forEach(time => {
-        const tr = document.createElement('tr');
-
-        const tdTime = document.createElement('td');
-        tdTime.textContent = time;
-        tr.appendChild(tdTime);
-
-        const td = document.createElement('td');
-        td.classList.add('slot-cell');
-
-        const r = findReservation(time);
-        if (r) {
-          td.classList.add('reserved');
-          td.innerHTML = `
-            予約済
-            <small>${escapeHtml(r.playerName)}<br>ID: ${escapeHtml(r.playerId)}</small>
-          `;
-        } else {
-          td.classList.add('free');
-          td.textContent = '空き';
-          td.addEventListener('click', () => onSelectSlot(td, time));
-        }
-
-        tr.appendChild(td);
-        tbody.appendChild(tr);
-      });
-
-      table.appendChild(tbody);
-      container.innerHTML = '';
-      container.appendChild(table);
-
-      // 選択状態をリセット
-      selectedTimeSlot = null;
-      document.getElementById('selectedSlotLabel').textContent = '（枠をクリックしてください）';
-      document.getElementById('reserveBtn').disabled = true;
-    }
-
-    function findReservation(timeSlot) {
-      return currentReservations.find(r =>
-        r.timeSlot === timeSlot
+    for (let i = 0; i < count; i++) {
+      const total = startTotal + stepMinutes * i;
+      const mod = total % DAY_MINUTES;  // 0〜1439 に丸める
+      const h = Math.floor(mod / 60);
+      const m = mod % 60;
+      slots.push(
+        String(h).padStart(2, '0') + ':' +
+        String(m).padStart(2, '0')
       );
     }
+    return slots;
+  }
 
-    function onSelectSlot(td, timeSlot) {
-      // 既に選択している枠のハイライトを解除
-      document.querySelectorAll('td.slot-cell.selected').forEach(cell => {
-        cell.classList.remove('selected');
+  function findReservation(slot) {
+    return reservations.find(r => r.timeSlot === slot);
+  }
+
+  function renderTable() {
+    const tbody = document.querySelector('#slot-table tbody');
+    tbody.innerHTML = '';
+
+    TIME_SLOTS.forEach(slot => {
+      const tr = document.createElement('tr');
+
+      const tdTime = document.createElement('td');
+      tdTime.textContent = slot;
+      tr.appendChild(tdTime);
+
+      const tdStatus = document.createElement('td');
+      tdStatus.classList.add('slot-cell');
+
+      const res = findReservation(slot);
+      if (res) {
+        tdStatus.textContent = '予約済（' + res.playerName + '）';
+        tdStatus.classList.add('reserved');
+      } else {
+        tdStatus.textContent = '空き';
+        tdStatus.classList.add('free');
+        tdStatus.addEventListener('click', () => {
+          selectSlot(slot, tdStatus);
+        });
+      }
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function selectSlot(slot, cell) {
+    selectedTimeSlot = slot;
+    document.getElementById('selected-slot-label').textContent =
+      TARGET_DATE_TEXT + ' / ' + slot;
+
+    // 既存の選択を解除
+    document.querySelectorAll('td.slot-cell').forEach(td => {
+      td.classList.remove('selected');
+    });
+    cell.classList.add('selected');
+  }
+
+  async function loadReservations() {
+    const status = document.getElementById('status');
+    status.textContent = '予約状況取得中...';
+    status.className = 'status';
+
+    try {
+      const resp = await fetch(API_BASE_URL);
+      const data = await resp.json();
+
+      if (!data.success) {
+        status.textContent = '予約状況の取得に失敗しました: ' + (data.message || '不明なエラー');
+        status.classList.add('error');
+        return;
+      }
+
+      reservations = data.reservations || [];
+      status.textContent = '予約状況を更新しました。';
+      status.classList.add('success');
+      renderTable();
+
+    } catch (err) {
+      console.error(err);
+      status.textContent = '予約状況の取得に失敗しました: ' + err;
+      status.classList.add('error');
+    }
+  }
+
+  async function reserveSelectedSlot() {
+    const status = document.getElementById('status');
+    status.className = 'status';
+
+    if (!selectedTimeSlot) {
+      status.textContent = '枠を選択してください。';
+      status.classList.add('error');
+      return;
+    }
+
+    const playerId = document.getElementById('player-id').value.trim();
+    const playerName = document.getElementById('player-name').value.trim() || '匿名';
+
+    if (!playerId) {
+      status.textContent = 'プレイヤーIDを入力してください。';
+      status.classList.add('error');
+      return;
+    }
+
+    const btn = document.getElementById('reserve-btn');
+    btn.disabled = true;
+    status.textContent = '予約送信中...';
+
+    try {
+      const resp = await fetch(API_BASE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timeSlot: selectedTimeSlot,
+          playerId: playerId,
+          playerName: playerName
+        })
       });
 
-      td.classList.add('selected');
-      selectedTimeSlot = timeSlot;
-
-      const label = document.getElementById('selectedSlotLabel');
-      label.textContent = `${TARGET_DATE} / ${timeSlot}`;
-      document.getElementById('reserveBtn').disabled = false;
-      setMessage('', '');
-    }
-
-    function setMessage(msg, type) {
-      const el = document.getElementById('message');
-      el.textContent = msg;
-      el.className = '';
-      if (type) el.classList.add(type);
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-
-    async function reserveSelectedSlot() {
-      if (!selectedTimeSlot) {
-        setMessage('枠が選択されていません', 'ng');
-        return;
+      const data = await resp.json();
+      if (!data.success) {
+        status.textContent = '予約に失敗しました: ' + (data.message || '不明なエラー');
+        status.classList.add('error');
+      } else {
+        status.textContent = '予約が完了しました。';
+        status.classList.add('success');
+        // 最新状態を再取得
+        await loadReservations();
       }
-      const playerId = document.getElementById('playerId').value.trim();
-      const playerName = document.getElementById('playerName').value.trim();
-      if (!playerId || !playerName) {
-        setMessage('ID と 名前を入力してください', 'ng');
-        return;
-      }
-
-      setMessage('予約送信中…', '');
-
-      try {
-        const res = await fetch(API_BASE_URL, {
-          method: 'POST',
-          // Content-Type を明示しない（プリフライト回避）
-          body: JSON.stringify({
-            timeSlot: selectedTimeSlot,
-            playerId,
-            playerName
-          })
-        });
-
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (!data.success) {
-          setMessage(data.message || '予約に失敗しました', 'ng');
-          return;
-        }
-
-        setMessage('予約が完了しました', 'ok');
-        await loadReservations(); // 最新状態を再取得して即反映
-      } catch (err) {
-        console.error(err);
-        setMessage('予約リクエストに失敗しました: ' + err.message, 'ng');
-      }
+    } catch (err) {
+      console.error(err);
+      status.textContent = '予約リクエストに失敗しました: ' + err;
+      status.classList.add('error');
+    } finally {
+      btn.disabled = false;
     }
+  }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('reloadBtn').addEventListener('click', loadReservations);
-      document.getElementById('reserveBtn').addEventListener('click', reserveSelectedSlot);
-      loadReservations();
-    });
-  </script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('target-date').textContent = TARGET_DATE_TEXT;
+    document.getElementById('reload-btn').addEventListener('click', loadReservations);
+    document.getElementById('reserve-btn').addEventListener('click', reserveSelectedSlot);
+
+    renderTable();
+    loadReservations();
+  });
+</script>
 </body>
 </html>
